@@ -7,11 +7,13 @@
     "storage",
     "alarms",
     "notifications",
-    "tabs"
+    "tabs",
+    "identity"
   ],
   "host_permissions": [
     "https://leetcode.com/*",
-    "https://api.github.com/*"
+    "https://api.github.com/*",
+    "https://github.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -30,5 +32,12 @@
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "oauth2": {
+    "client_id": "279164720081-40s67rvjrf25lg9rsp3mqn286s0lbqdn.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+  }
 }

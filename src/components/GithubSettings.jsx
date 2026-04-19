@@ -176,6 +176,10 @@ export default function GithubSettings() {
     }
   };
 
+  // ─── GitHub OAuth Flow ──────────────────────────────────────────────────────
+  // GitHub connection is now managed via Supabase in the Profile tab.
+
+
   const disconnect = async () => {
     if (typeof chrome !== "undefined" && chrome.storage) {
       await chrome.storage.local.remove(["ghToken", "ghRepo", "ghTokenDraft", "ghRepoDraft"]);
@@ -410,39 +414,44 @@ export default function GithubSettings() {
             </div>
 
             {/* Token */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Personal Access Token
-              </label>
-              <div className="relative">
-                <Input
-                  type={showToken ? "text" : "password"}
-                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                  value={token}
-                  onChange={(e) => updateToken(e.target.value)}
-                  className="h-9 text-sm rounded-lg pr-9"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowToken(!showToken)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showToken ? (
-                    <EyeOff className="w-3.5 h-3.5" />
-                  ) : (
-                    <Eye className="w-3.5 h-3.5" />
-                  )}
-                </button>
+            <div className="flex flex-col gap-3 mt-1">
+              <div className="flex items-center gap-2">
+                <div className="h-px bg-border flex-1" />
+                <span className="text-[10px] uppercase text-muted-foreground font-medium tracking-widest">Authentication</span>
+                <div className="h-px bg-border flex-1" />
               </div>
-              <a
-                href="https://github.com/settings/tokens/new?scopes=repo&description=DSA+Timebox+Pro"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-fit"
-              >
-                Generate a token with <code className="text-[10px] bg-muted px-1 py-0.5 rounded">repo</code> scope
-                <ExternalLink className="w-2.5 h-2.5" />
-              </a>
+
+              <div className="text-xs text-muted-foreground flex gap-1 items-center bg-purple-500/10 text-purple-300 p-2 rounded-md">
+                <p><strong>Tip:</strong> Connect your GitHub cleanly from the <strong>Profile Tab</strong> using Supabase OAuth, or manually provide a PAT below!</p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <div className="relative">
+                  <Input
+                    type={showToken ? "text" : "password"}
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    value={token}
+                    onChange={(e) => updateToken(e.target.value)}
+                    className="h-9 text-sm rounded-lg pr-9"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(!showToken)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <a
+                  href="https://github.com/settings/tokens/new?scopes=repo&description=DSA+Timebox+Pro"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-fit"
+                >
+                  Generate a token with <code className="text-[10px] bg-muted px-1 py-0.5 rounded">repo</code> scope
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              </div>
             </div>
 
             {/* Error */}
