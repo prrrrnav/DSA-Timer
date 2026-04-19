@@ -45,13 +45,13 @@ Since this extension requires a build step, follow these instructions to load it
 
 
 
-2.Install dependencies
+2.**Install dependencies**
 
     npm install
 
 
 
-3.Build the extension
+3.**Build the extension**
 
     npm run build
 
@@ -59,7 +59,7 @@ Since this extension requires a build step, follow these instructions to load it
 
 
 
-4.Load into Chrome
+4.**Load into Chrome**
 
     Open Google Chrome and navigate to chrome://extensions/.
 
