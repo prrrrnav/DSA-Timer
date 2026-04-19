@@ -7,6 +7,14 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({
     pomo_isRunning: false, pomo_mode: "work", pomo_endTime: 0, pomo_completedPomodoros: 0
   });
+  // Sync status defaults
+  chrome.storage.local.set({
+    lastSyncStatus: null,  // "success" | "error" | null
+    lastSyncTime: null,
+    lastSyncProblem: null,
+    lastSyncError: null,
+    syncHistory: [],
+  });
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -105,6 +113,27 @@ function notify(title, message) {
 }
 
 /**
+ * Store the latest sync result in chrome.storage.local so the popup can display it.
+ */
+async function storeSyncResult(status, problem, errorMsg) {
+  const now = Date.now();
+  const entry = { status, problem, time: now, error: errorMsg || null };
+
+  // Update current status
+  await chrome.storage.local.set({
+    lastSyncStatus: status,
+    lastSyncTime: now,
+    lastSyncProblem: problem || null,
+    lastSyncError: errorMsg || null,
+  });
+
+  // Append to history (keep last 20)
+  const { syncHistory = [] } = await chrome.storage.local.get("syncHistory");
+  const updated = [entry, ...syncHistory].slice(0, 20);
+  await chrome.storage.local.set({ syncHistory: updated });
+}
+
+/**
  * Fetch the existing file SHA from GitHub (needed for updates).
  * Returns the sha string, or null if the file doesn't exist yet.
  */
@@ -163,6 +192,35 @@ async function commitToGitHub(repo, path, content, token, commitMessage, sha) {
  * reads credentials from storage, and pushes to GitHub.
  */
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === "MANUAL_SYNC") {
+    // Forward manual sync to every matching LeetCode tab's content script
+    (async () => {
+      try {
+        const tabs = await chrome.tabs.query({ url: "https://leetcode.com/problems/*" });
+        if (tabs.length === 0) {
+          await storeSyncResult("error", null, "No LeetCode problem tab found. Open a problem page first.");
+          sendResponse({ success: false, reason: "no_tab", message: "No LeetCode problem tab found." });
+          return;
+        }
+
+        // Send to the active/first LeetCode tab
+        const tab = tabs[0];
+        chrome.tabs.sendMessage(tab.id, { type: "MANUAL_SYNC" }, (response) => {
+          if (chrome.runtime.lastError) {
+            storeSyncResult("error", null, "Could not reach LeetCode page. Try refreshing the page.");
+            sendResponse({ success: false, reason: "tab_error", message: chrome.runtime.lastError.message });
+            return;
+          }
+          sendResponse(response);
+        });
+      } catch (err) {
+        await storeSyncResult("error", null, err.message);
+        sendResponse({ success: false, reason: "error", message: err.message });
+      }
+    })();
+    return true;
+  }
+
   if (message.type !== "LEETCODE_ACCEPTED") return;
 
   (async () => {
@@ -173,6 +231,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (!ghToken || !ghRepo) {
         console.warn("[DSA Timebox] GitHub credentials not configured. Skipping sync.");
         notify("⚠️ GitHub Sync Skipped", "Set your GitHub token & repo in the extension settings.");
+        await storeSyncResult("error", message.title, "GitHub credentials not configured.");
         sendResponse({ success: false, reason: "missing_credentials" });
         return;
       }
@@ -196,27 +255,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (status === 200 || status === 201) {
         console.log("[DSA Timebox] ✅ Committed →", path);
         notify("✅ Solution Synced!", `${message.title} pushed to ${ghRepo}/${path}`);
+        await storeSyncResult("success", message.title, null);
         sendResponse({ success: true });
       } else if (status === 401) {
         console.error("[DSA Timebox] ❌ 401 Unauthorized");
         notify("❌ GitHub Auth Failed", "Your token is invalid or expired. Update it in settings.");
+        await storeSyncResult("error", message.title, "Token invalid or expired (401).");
         sendResponse({ success: false, reason: "unauthorized" });
       } else if (status === 404) {
         console.error("[DSA Timebox] ❌ 404 Repo Not Found");
         notify("❌ Repo Not Found", `Could not find repository "${ghRepo}". Check the name in settings.`);
+        await storeSyncResult("error", message.title, `Repository "${ghRepo}" not found (404).`);
         sendResponse({ success: false, reason: "repo_not_found" });
       } else if (status === 422) {
         console.error("[DSA Timebox] ❌ 422 Unprocessable Entity", data);
         notify("❌ GitHub Sync Error", data.message || "Unprocessable entity — the file may be in conflict.");
+        await storeSyncResult("error", message.title, data.message || "Unprocessable entity (422).");
         sendResponse({ success: false, reason: "unprocessable" });
       } else {
         console.error("[DSA Timebox] ❌ Unexpected status:", status, data);
         notify("❌ GitHub Sync Failed", `Unexpected error (HTTP ${status}). Check the console.`);
+        await storeSyncResult("error", message.title, `Unexpected error (HTTP ${status}).`);
         sendResponse({ success: false, reason: "unknown", status });
       }
     } catch (err) {
       console.error("[DSA Timebox] ❌ Network/runtime error:", err);
       notify("❌ Sync Error", `Could not reach GitHub: ${err.message}`);
+      await storeSyncResult("error", message.title, `Network error: ${err.message}`);
       sendResponse({ success: false, reason: "network_error", error: err.message });
     }
   })();

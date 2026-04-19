@@ -50,7 +50,7 @@
 
   // ─── Extract the selected programming language ───────────────────────────────
   function extractLanguage() {
-    // LeetCode renders the current language in a button inside the editor toolbar
+    // Method 1: LeetCode shows language in the editor toolbar dropdown button
     const langBtn = document.querySelector(
       'button[class*="lang-btn"], div[class*="editor"] button[id*="lang"]'
     );
@@ -58,9 +58,21 @@
       return langBtn.textContent.trim().toLowerCase();
     }
 
-    // Broader fallback: any element whose text matches a known language near the editor
+    // Method 2: Look for the language label in the submission result area
+    // e.g., "Code  |  Java" appears in the result details panel
+    const allElements = document.querySelectorAll('div, span');
+    for (const el of allElements) {
+      const text = (el.textContent || "").trim();
+      // Match patterns like "Code | Java" or just a standalone language name near the code
+      if (/^Code\s*\|\s*(\w+)$/i.test(text)) {
+        const match = text.match(/^Code\s*\|\s*(\w+)$/i);
+        if (match) return match[1].toLowerCase();
+      }
+    }
+
+    // Method 3: Broader fallback — any button/element whose text matches a known language
     const candidates = document.querySelectorAll(
-      'button, div[class*="select"], div[role="button"]'
+      'button, div[class*="select"], div[role="button"], span'
     );
     const knownLangs = [
       "python", "python3", "javascript", "typescript", "java",
@@ -75,19 +87,41 @@
     return "unknown";
   }
 
-  // ─── Extract the submitted code from the Monaco editor ───────────────────────
+  // ─── Extract the submitted code ──────────────────────────────────────────────
   function extractCode() {
-    // Monaco renders each line as a <div class="view-line"> inside the editor
-    const lines = document.querySelectorAll(
-      'div.view-lines[role="presentation"] .view-line'
-    );
-    if (lines.length > 0) {
-      return Array.from(lines)
+    // Strategy 1: CodeMirror 6 (current LeetCode editor)
+    // CodeMirror renders lines as <div class="cm-line"> inside <div class="cm-content">
+    const cmContent = document.querySelectorAll('.cm-content .cm-line');
+    if (cmContent.length > 0) {
+      return Array.from(cmContent)
         .map((line) => line.textContent)
         .join("\n");
     }
 
-    // Fallback: try a <textarea> or <pre> (older layout / code mirror)
+    // Strategy 2: Multiple CodeMirror editors may exist on the page
+    // Get ALL cm-editor instances — the code editor is typically the largest one
+    const cmEditors = document.querySelectorAll('.cm-editor');
+    if (cmEditors.length > 0) {
+      let bestCode = "";
+      for (const editor of cmEditors) {
+        const lines = editor.querySelectorAll('.cm-line');
+        const code = Array.from(lines).map(l => l.textContent).join("\n");
+        if (code.length > bestCode.length) bestCode = code;
+      }
+      if (bestCode.length > 0) return bestCode;
+    }
+
+    // Strategy 3: Monaco editor fallback (older LeetCode layout)
+    const monacoLines = document.querySelectorAll(
+      'div.view-lines[role="presentation"] .view-line'
+    );
+    if (monacoLines.length > 0) {
+      return Array.from(monacoLines)
+        .map((line) => line.textContent)
+        .join("\n");
+    }
+
+    // Strategy 4: <textarea> or <pre> (very old layout)
     const textarea = document.querySelector(
       'textarea[class*="input"], pre[class*="code"]'
     );
@@ -98,27 +132,84 @@
 
   // ─── Detect "Accepted" result in the DOM ─────────────────────────────────────
   function isAcceptedVisible() {
-    // LeetCode shows a result panel after submission. The key indicator is
-    // a span/div containing the exact word "Accepted" (usually with a green color).
-    const resultEls = document.querySelectorAll(
-      'span[data-e2e-locator="submission-result"], ' +
-      'span[class*="success"], ' +
-      'div[class*="result"] span, ' +
-      'div[class*="success"]'
-    );
+    // LeetCode shows "Accepted" prominently after a successful submission.
+    // We use multiple strategies for resilience against layout/class changes.
 
-    for (const el of resultEls) {
-      const text = (el.textContent || "").trim().toLowerCase();
-      if (text === "accepted") return true;
+    // Method 1: data-e2e-locator attribute (stable selector)
+    const resultEl = document.querySelector('span[data-e2e-locator="submission-result"]');
+    if (resultEl && resultEl.textContent.trim().toLowerCase() === "accepted") {
+      return true;
     }
 
-    // Broader text scan as a resilience layer
-    const allSpans = document.querySelectorAll("span");
+    // Method 2: Look for success-themed result containers
+    // LeetCode often uses class names containing "success" or "accepted"
+    const successEls = document.querySelectorAll(
+      '[class*="success"], [class*="accepted"], [class*="Accepted"], [class*="Success"]'
+    );
+    for (const el of successEls) {
+      const text = el.textContent.trim().toLowerCase();
+      if (text.includes("accepted")) return true;
+    }
+
+    // Method 3: result-status classes used by modern LeetCode
+    const resultStatus = document.querySelectorAll(
+      '[class*="result-status"], [class*="submission-result"], [data-cy*="result"]'
+    );
+    for (const el of resultStatus) {
+      if (el.textContent.trim().toLowerCase().includes("accepted")) return true;
+    }
+
+    // Method 4: "Congratulations" banner that sometimes appears
+    const allDivs = document.querySelectorAll('div, p');
+    for (const el of allDivs) {
+      const text = el.textContent.trim();
+      if (/congratulations/i.test(text) && text.length < 200) return true;
+    }
+
+    // Method 5: Look for any element with green "Accepted" text
+    // LeetCode often renders it as a <span> with green color
+    const allSpans = document.querySelectorAll("span, div, p, h3, h4, h5");
     for (const span of allSpans) {
-      if (
-        span.textContent.trim() === "Accepted" &&
-        span.closest('[class*="result"], [class*="submission"], [id*="result"]')
-      ) {
+      const text = span.textContent.trim();
+      if (text === "Accepted" || text === "accepted") {
+        // Verify it's actually a result indicator (has green color or is near testcases info)
+        const style = window.getComputedStyle(span);
+        const color = style.color;
+        // Green-ish color check (rgb values where green > red and green > blue)
+        const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (match) {
+          const [, r, g, b] = match.map(Number);
+          if (g > r && g > b) return true;  // It's green text
+        }
+        // Also check if nearby text mentions "testcases passed"
+        const parent = span.parentElement;
+        if (parent && /testcases?\s*passed/i.test(parent.textContent)) {
+          return true;
+        }
+        // Check broader parent context
+        const grandparent = parent?.parentElement;
+        if (grandparent && /testcases?\s*passed/i.test(grandparent.textContent)) {
+          return true;
+        }
+        // Check if the element or its ancestors have a "success" class hint
+        let ancestor = span;
+        for (let i = 0; i < 5 && ancestor; i++) {
+          if (ancestor.className && typeof ancestor.className === 'string') {
+            if (/success|accepted|correct/i.test(ancestor.className)) return true;
+          }
+          ancestor = ancestor.parentElement;
+        }
+      }
+    }
+
+    // Method 6: Check for the runtime/memory result panels which only appear on accepted
+    // LeetCode shows "Runtime" and "Memory" stats only on accepted submissions
+    const runtimeEl = document.querySelector('[class*="runtime"], [class*="Runtime"]');
+    const memoryEl = document.querySelector('[class*="memory"], [class*="Memory"]');
+    if (runtimeEl && memoryEl) {
+      // Both exist — check if the page also has "faster than" or "less than" text patterns
+      const bodyText = document.body.textContent;
+      if (/beats?\s+\d+.*%/i.test(bodyText) || /faster\s+than/i.test(bodyText)) {
         return true;
       }
     }
@@ -145,9 +236,43 @@
       language: language,
     };
 
-    console.log("[DSA Timebox] Sending accepted solution →", payload.slug);
+    console.log("[DSA Timebox] Sending accepted solution →", payload.slug, `(${language})`);
     chrome.runtime.sendMessage(payload);
   }
+
+  // ─── Manual sync: triggered from the popup ──────────────────────────────────
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === "MANUAL_SYNC") {
+      console.log("[DSA Timebox] Manual sync requested");
+
+      const title = extractProblemTitle();
+      const code = extractCode();
+      const language = extractLanguage();
+
+      if (!code) {
+        sendResponse({ success: false, reason: "no_code", message: "Could not extract code from this page. Make sure you're on a LeetCode problem page with code visible." });
+        return true;
+      }
+
+      const payload = {
+        type: "LEETCODE_ACCEPTED",
+        title: title,
+        slug: slugify(title),
+        code: code,
+        language: language,
+        isManual: true,
+      };
+
+      console.log("[DSA Timebox] Manual sync →", payload.slug, `(${language})`);
+
+      // Send to background and relay the result back
+      chrome.runtime.sendMessage(payload, (bgResponse) => {
+        sendResponse({ success: true, title, language, bgResponse });
+      });
+
+      return true; // keep channel open for async response
+    }
+  });
 
   // ─── MutationObserver: watch for DOM changes indicating "Accepted" ───────────
   function startObserver() {

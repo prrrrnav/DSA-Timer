@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Code2, Timer } from "lucide-react";
+import { Code2, Timer, GitFork } from "lucide-react";
 import DsaTimer from "@/components/DsaTimer";
 import PomodoroTimer from "@/components/PomodoroTimer";
+import GithubSettings from "@/components/GithubSettings";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dsa");
@@ -37,6 +38,10 @@ export default function App() {
               <Timer className="w-3.5 h-3.5" />
               Pomodoro
             </TabsTrigger>
+            <TabsTrigger value="github" className="flex-1 gap-1.5 text-xs">
+              <GitFork className="w-3.5 h-3.5" />
+              GitHub
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -46,6 +51,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="pomodoro" className="mt-0">
             <PomodoroTimer />
+          </TabsContent>
+          <TabsContent value="github" className="mt-0">
+            <GithubSettings />
           </TabsContent>
         </div>
       </Tabs>
