@@ -28,6 +28,10 @@
         from { transform: rotate(0deg); }
         to   { transform: rotate(360deg); }
       }
+      @keyframes dsa-glow-pulse-syncing {
+        0%, 100% { box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.5), 0 0 20px 4px rgba(255, 255, 255, 0.2); }
+        50%      { box-shadow: 0 0 16px 6px rgba(255, 255, 255, 0.8), 0 0 35px 12px rgba(255, 255, 255, 0.3); }
+      }
       @keyframes dsa-glow-pulse-success {
         0%, 100% { box-shadow: 0 0 8px 2px rgba(52, 211, 153, 0.5), 0 0 20px 4px rgba(52, 211, 153, 0.2); }
         50%      { box-shadow: 0 0 14px 4px rgba(52, 211, 153, 0.7), 0 0 30px 8px rgba(52, 211, 153, 0.3); }
@@ -69,9 +73,10 @@
 
       /* ── Syncing (spinning) ── */
       .dsa-sync-badge--syncing {
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        background: linear-gradient(135deg, #1f2937, #374151); /* Deep dark background */
         color: #fff;
-        box-shadow: 0 0 10px 2px rgba(99, 102, 241, 0.4);
+        animation: dsa-badge-enter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+                   dsa-glow-pulse-syncing 2s ease-in-out infinite;
       }
       .dsa-sync-badge--syncing .dsa-sync-badge__letter {
         animation: dsa-spin 1s linear infinite;
@@ -489,21 +494,25 @@
 
     console.log("[DSA Timebox] Sending accepted solution →", payload.slug, `(${language})`);
 
-    chrome.runtime.sendMessage(payload, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error("[DSA Timebox] Message error:", chrome.runtime.lastError);
-        setBadgeState("error", "Sync error — " + chrome.runtime.lastError.message);
-        return;
-      }
-      if (response?.success) {
-        setBadgeState("success", "✓ Synced to GitHub!");
-        console.log("[DSA Timebox] ✅ Sync confirmed by background");
-      } else {
-        const reason = response?.reason || "unknown";
-        setBadgeState("error", "Sync failed — " + reason);
-        console.warn("[DSA Timebox] ❌ Sync failed:", reason);
-      }
-    });
+    try {
+      chrome.runtime.sendMessage(payload, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("[DSA Timebox] Message error:", chrome.runtime.lastError);
+          setBadgeState("error", "Sync error — " + chrome.runtime.lastError.message);
+          return;
+        }
+        if (response?.success) {
+          setBadgeState("success", "✓ Synced to GitHub!");
+          console.log("[DSA Timebox] ✅ Sync confirmed by background");
+        } else {
+          const reason = response?.reason || "unknown";
+          setBadgeState("error", "Sync failed — " + reason);
+          console.warn("[DSA Timebox] ❌ Sync failed:", reason);
+        }
+      });
+    } catch (err) {
+      setBadgeState("error", "Extension reloaded! Please refresh the page.");
+    }
   }
 
   // ─── Manual sync via badge click ─────────────────────────────────────────────
@@ -532,17 +541,21 @@
 
     console.log("[DSA Timebox] Manual sync →", payload.slug, `(${language})`);
 
-    chrome.runtime.sendMessage(payload, (response) => {
-      if (chrome.runtime.lastError) {
-        setBadgeState("error", "Sync error — " + chrome.runtime.lastError.message);
-        return;
-      }
-      if (response?.success) {
-        setBadgeState("success", "✓ Synced to GitHub!");
-      } else {
-        setBadgeState("error", "Sync failed — " + (response?.reason || "unknown"));
-      }
-    });
+    try {
+      chrome.runtime.sendMessage(payload, (response) => {
+        if (chrome.runtime.lastError) {
+          setBadgeState("error", "Sync error — " + chrome.runtime.lastError.message);
+          return;
+        }
+        if (response?.success) {
+          setBadgeState("success", "✓ Synced to GitHub!");
+        } else {
+          setBadgeState("error", "Sync failed — " + (response?.reason || "unknown"));
+        }
+      });
+    } catch (err) {
+      setBadgeState("error", "Extension reloaded! Please refresh the page.");
+    }
   }
 
   // ─── Manual sync: triggered from the popup ──────────────────────────────────
@@ -578,19 +591,24 @@
 
       console.log("[DSA Timebox] Manual sync →", payload.slug, `(${language})`);
 
-      chrome.runtime.sendMessage(payload, (bgResponse) => {
-        if (chrome.runtime.lastError) {
-          setBadgeState("error", "Sync error");
-          sendResponse({ success: false, reason: "bg_error", message: chrome.runtime.lastError.message });
-          return;
-        }
-        if (bgResponse?.success) {
-          setBadgeState("success", "✓ Synced to GitHub!");
-        } else {
-          setBadgeState("error", "Sync failed — " + (bgResponse?.reason || "unknown"));
-        }
-        sendResponse({ success: true, title, language, bgResponse });
-      });
+      try {
+        chrome.runtime.sendMessage(payload, (bgResponse) => {
+          if (chrome.runtime.lastError) {
+            setBadgeState("error", "Sync error");
+            sendResponse({ success: false, reason: "bg_error", message: chrome.runtime.lastError.message });
+            return;
+          }
+          if (bgResponse?.success) {
+            setBadgeState("success", "✓ Synced to GitHub!");
+          } else {
+            setBadgeState("error", "Sync failed — " + (bgResponse?.reason || "unknown"));
+          }
+          sendResponse({ success: true, title, language, bgResponse });
+        });
+      } catch (err) {
+        setBadgeState("error", "Extension reloaded! Please refresh the page.");
+        sendResponse({ success: false, reason: "context_invalidated", message: "Extension reloaded." });
+      }
 
       return true; // keep channel open
     }
