@@ -3,7 +3,6 @@
 A strict, phase-based Chrome Extension designed to help developers master Data Structures and Algorithms (DSA) by enforcing structured timeboxing.
 
 ![DSA Timer Interface](image.png)
-![Pomodoro Timer Interface](image-1.png)
 
 ## 🎯 The Problem
 When practicing DSA on platforms like LeetCode, it is incredibly easy to fall into "analysis paralysis" or spend 45 minutes coding a flawed brute-force approach. To succeed in technical interviews, you need to build mental muscle memory around a structured problem-solving framework.
@@ -24,6 +23,10 @@ This extension enforces a battle-tested 45-minute interview framework by breakin
 * **Persistent Background Processing:** Built with Chrome Service Workers so the timer continues running even when the popup is closed.
 * **System Notifications:** Pushes native OS alerts when a phase is complete.
 * **Premium UI:** Designed using Radix primitives, `shadcn/ui`, and Tailwind CSS for a sleek, accessible, and responsive interface.
+
+## Additional Study Feature
+
+![Pomodoro Timer Interface](image-1.png)
 
 ## 🛠️ Tech Stack
 * **Framework:** React + Vite
